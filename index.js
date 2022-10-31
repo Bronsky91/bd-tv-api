@@ -2,7 +2,7 @@ require("dotenv").config();
 const bodyParser = require("body-parser");
 const express = require("express");
 var mongoose = require("mongoose");
-const fileUpload = require('express-fileupload');
+const fileUpload = require("express-fileupload");
 
 const routes = require("./routes");
 
@@ -25,7 +25,12 @@ app.use(
     limit: "50mb",
   })
 );
-app.use(fileUpload());
+app.use(
+  fileUpload({
+    useTempFiles: true,
+    tempFileDir: "/tmp/",
+  })
+);
 
 app.use(bodyParser.json());
 app.use("/api", routes);

@@ -1,12 +1,18 @@
 require("dotenv").config();
 const { v4: uuidv4 } = require("uuid");
+const fs = require("fs");
+const { execSync: exec } = require("child_process");
 const AWS = require("aws-sdk");
 const s3 = new AWS.S3({
   endpoint: "https://s3.filebase.com",
   signatureVersion: "v4",
 });
+const { Deepgram } = require("@deepgram/sdk");
+const ffmpegStatic = require("ffmpeg-static");
 
 const Video = require("../models/videoModel");
+
+const deepgram = new Deepgram(process.env.DEEPGRAM_SECRET);
 
 exports.index = async (req, res) => {
   try {
@@ -28,28 +34,48 @@ exports.add = async (req, res) => {
     }
 
     const videoFile = files.video;
-    const { data, name } = videoFile;
+    const { name, tempFilePath } = videoFile;
 
     const s3Key = name + "-" + uuidv4();
+
+    const buffer = fs.readFileSync(tempFilePath);
 
     const params = {
       Bucket: "bdtv",
       Key: s3Key,
       ContentType: "video/mp4",
-      Body: data,
+      Body: buffer,
     };
 
     const putObjectPromise = s3.putObject(params).promise();
 
     await putObjectPromise;
 
+    const transcriptData = await transcribeLocalVideo(tempFilePath);
+    const { channels } = transcriptData;
+
+    let transcriptText;
+
+    if (channels && channels.length > 0) {
+      const { alternatives } = channels[0];
+      if (alternatives && alternatives.length > 0) {
+        const { transcript } = alternatives[0];
+        transcriptText = transcript;
+      }
+    }
+
     const newVideo = new Video();
     newVideo.key = s3Key;
+    if (transcriptText) {
+      newVideo.transcript = transcriptText;
+    }
     newVideo.uploadDate = new Date();
 
     await newVideo.save();
 
     return res.json(newVideo);
+
+    return res.sendStatus(200);
   } catch (error) {
     console.log(error);
     res.status(400).send({ error });
@@ -132,3 +158,25 @@ exports.download = async (req, res) => {
     res.status(400).send({ error });
   }
 };
+
+async function ffmpeg(command) {
+  return new Promise((resolve, reject) => {
+    exec(`${ffmpegStatic} ${command}`, (err, stderr, stdout) => {
+      if (err) reject(err);
+      resolve(stdout);
+    });
+  });
+}
+
+async function transcribeLocalVideo(filePath) {
+  ffmpeg(`-hide_banner -y -i ${filePath} ${filePath}.wav`);
+
+  const audioFile = {
+    buffer: fs.readFileSync(`${filePath}.wav`),
+    mimetype: "audio/wav",
+  };
+  const response = await deepgram.transcription.preRecorded(audioFile, {
+    punctuation: true,
+  });
+  return response.results;
+}

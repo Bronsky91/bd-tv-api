@@ -1,10 +1,12 @@
 {
   "dependencies": {
+    "@deepgram/sdk": "^1.10.2",
     "aws-sdk": "^2.1243.0",
     "body-parser": "^1.20.1",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "express-fileupload": "^1.4.0",
+    "ffmpeg-static": "^5.1.0",
     "mongoose": "^6.7.0",
     "uuid": "^9.0.0"
   },
