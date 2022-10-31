@@ -5,9 +5,15 @@ const videoModel = mongoose.Schema({
   description: String,
   transcript: String,
   creator: String,
+  key: String,
+  likes: Number,
+  views: Number,
+  category: String,
+  uploadDate: Date,
+  keywords: [String],
 });
 
-var Video = (module.exports = mongoose.model("video", videoModel));
+const Video = (module.exports = mongoose.model("video", videoModel));
 
 module.exports.get = function (callback, limit) {
   Video.find(callback).limit(limit);
