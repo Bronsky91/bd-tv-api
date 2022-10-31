@@ -74,8 +74,6 @@ exports.add = async (req, res) => {
     await newVideo.save();
 
     return res.json(newVideo);
-
-    return res.sendStatus(200);
   } catch (error) {
     console.log(error);
     res.status(400).send({ error });
