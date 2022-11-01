@@ -1,18 +1,20 @@
 require("dotenv").config();
 const { v4: uuidv4 } = require("uuid");
 const fs = require("fs");
-const { execSync: exec } = require("child_process");
 const AWS = require("aws-sdk");
 const s3 = new AWS.S3({
   endpoint: "https://s3.filebase.com",
   signatureVersion: "v4",
 });
-const { Deepgram } = require("@deepgram/sdk");
-const ffmpegStatic = require("ffmpeg-static");
+
+const thumbsupply = require("thumbsupply");
 
 const Video = require("../models/videoModel");
-
-const deepgram = new Deepgram(process.env.DEEPGRAM_SECRET);
+const {
+  transcribeLocalVideo,
+  getKeywordsFromTranscriptWords,
+} = require("../utils");
+const { THUMBNAIL_BUCKET, VIDEO_BUCKET } = require("../constants");
 
 exports.index = async (req, res) => {
   try {
@@ -34,40 +36,60 @@ exports.add = async (req, res) => {
     }
 
     const videoFile = files.video;
-    const { name, tempFilePath } = videoFile;
+    const { name, tempFilePath, mimetype } = videoFile;
 
-    const s3Key = name + "-" + uuidv4();
-
-    const buffer = fs.readFileSync(tempFilePath);
-
-    const params = {
-      Bucket: "bdtv",
-      Key: s3Key,
+    // Uploads video to S3
+    const s3VideoKey = name + "-" + uuidv4();
+    const videoBuffer = fs.readFileSync(tempFilePath);
+    const videoParams = {
+      Bucket: VIDEO_BUCKET,
+      Key: s3VideoKey,
       ContentType: "video/mp4",
-      Body: buffer,
+      Body: videoBuffer,
     };
+    const putVideoObjectPromise = s3.putObject(videoParams).promise();
+    await putVideoObjectPromise;
 
-    const putObjectPromise = s3.putObject(params).promise();
+    // Uploads thumbnail to S3
+    const thumbnailPath = await thumbsupply.generateThumbnail(tempFilePath, {
+      mimetype,
+    });
+    const s3ThumbnailKey = name + "-thumbnail-" + uuidv4();
+    const thumbnailBuffer = fs.readFileSync(thumbnailPath);
+    const thumbnailParams = {
+      Bucket: THUMBNAIL_BUCKET,
+      Key: s3ThumbnailKey,
+      ContentType: "image/png",
+      Body: thumbnailBuffer,
+    };
+    const putThumbnailObjectPromise = s3.putObject(thumbnailParams).promise();
+    await putThumbnailObjectPromise;
 
-    await putObjectPromise;
-
+    // Gets transcript and keywords
     const transcriptData = await transcribeLocalVideo(tempFilePath);
     const { channels } = transcriptData;
 
     let transcriptText;
+    let transcriptWords;
 
     if (channels && channels.length > 0) {
       const { alternatives } = channels[0];
       if (alternatives && alternatives.length > 0) {
-        const { transcript } = alternatives[0];
+        const { transcript, words } = alternatives[0];
         transcriptText = transcript;
+        transcriptWords = words;
       }
     }
 
+    // Creates video mongo document
     const newVideo = new Video();
-    newVideo.key = s3Key;
+    newVideo.key = s3VideoKey;
+    newVideo.thumbnailKey = s3ThumbnailKey;
     if (transcriptText) {
       newVideo.transcript = transcriptText;
+    }
+    if (transcriptWords) {
+      newVideo.keywords = getKeywordsFromTranscriptWords(transcriptWords);
     }
     newVideo.uploadDate = new Date();
 
@@ -119,6 +141,7 @@ exports.remove = async (req, res) => {
 
 exports.search = async (req, res) => {
   try {
+    //TODO: Base of keywords, title, and description
     const videos = await Video.find({});
 
     return res.json({ videos });
@@ -128,53 +151,38 @@ exports.search = async (req, res) => {
   }
 };
 
-// TODO: stream video content from S3?
-// exports.stream
+exports.stream = async (req, res) => {
+  res.setHeader("content-type", "video/mp4");
 
-exports.download = async (req, res) => {
+  const { key } = req.query;
+
+  const params = {
+    Bucket: VIDEO_BUCKET,
+    Key: key,
+  };
+  const fileStream = await s3.getObject(params).createReadStream();
+
+  fileStream.on("error", (error) => {
+    console.log(error);
+    res.sendStatus(500);
+  });
+
+  fileStream.pipe(res);
+};
+
+exports.getThumbnailImage = async (req, res) => {
   try {
     const { key } = req.query;
 
     const params = {
+      Bucket: THUMBNAIL_BUCKET,
       Key: key,
-      Bucket: "bdtv",
     };
+    const readStream = await s3.getObject(params).createReadStream();
 
-    s3.getObject(params, function (error, data) {
-      if (error) {
-        console.log("Error while reading file " + key);
-        console.log(error);
-      } else {
-        console.log("Returning contents from " + key);
-        console.log("data", data);
-      }
-    });
-
-    return res.sendStatus(200);
+    readStream.pipe(res);
   } catch (error) {
     console.log(error);
-    res.status(400).send({ error });
+    res.sendStatus(404);
   }
 };
-
-async function ffmpeg(command) {
-  return new Promise((resolve, reject) => {
-    exec(`${ffmpegStatic} ${command}`, (err, stderr, stdout) => {
-      if (err) reject(err);
-      resolve(stdout);
-    });
-  });
-}
-
-async function transcribeLocalVideo(filePath) {
-  ffmpeg(`-hide_banner -y -i ${filePath} ${filePath}.wav`);
-
-  const audioFile = {
-    buffer: fs.readFileSync(`${filePath}.wav`),
-    mimetype: "audio/wav",
-  };
-  const response = await deepgram.transcription.preRecorded(audioFile, {
-    punctuation: true,
-  });
-  return response.results;
-}

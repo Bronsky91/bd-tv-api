@@ -6,6 +6,7 @@ const videoModel = mongoose.Schema({
   transcript: String,
   creator: String,
   key: String,
+  thumbnailKey: String,
   likes: Number,
   views: Number,
   category: String,

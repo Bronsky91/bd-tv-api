@@ -12,6 +12,8 @@ router
 
 router.route("/video/search").get(videoController.search);
 
-router.route("/video/download").get(videoController.download);
+router.route("/video/thumbnail").get(videoController.getThumbnailImage);
+
+router.route("/video/stream").get(videoController.stream);
 
 module.exports = router;
