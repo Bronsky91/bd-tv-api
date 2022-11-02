@@ -142,20 +142,24 @@ exports.remove = async (req, res) => {
 exports.search = async (req, res) => {
   try {
     const { term } = req.query;
-    const regex = new RegExp(term, "i");
-    const searchArray = term.split(" ");
-    const query = {
-      $or: [
-        { title: regex },
-        { keywords: { $in: searchArray } },
-        { description: regex },
-        { creator: regex },
-      ],
-    };
+    if (term) {
+      const regex = new RegExp(term, "i");
+      const searchArray = term.split(" ");
+      const query = {
+        $or: [
+          { title: regex },
+          { keywords: { $in: searchArray } },
+          { description: regex },
+          { creator: regex },
+        ],
+      };
 
-    const videos = await Video.find(query);
+      const videos = await Video.find(query);
+      return res.json({ videos });
+    }
 
-    return res.json({ videos });
+    const allVideos = await Video.find({});
+    return res.json({ videos: allVideos });
   } catch (error) {
     console.log(error);
     res.status(400).send({ error });
