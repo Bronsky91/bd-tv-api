@@ -3,6 +3,7 @@ const bodyParser = require("body-parser");
 const express = require("express");
 var mongoose = require("mongoose");
 const fileUpload = require("express-fileupload");
+const timeout = require("connect-timeout");
 
 const routes = require("./routes");
 
@@ -32,6 +33,9 @@ app.use(
   })
 );
 
+app.use(timeout(120000));
+app.use(haltOnTimedout);
+
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header(
@@ -51,6 +55,10 @@ app.use((req, res, next) => {
 
 app.use(bodyParser.json());
 app.use("/api", routes);
+
+function haltOnTimedout(req, res, next) {
+  if (!req.timedout) next();
+}
 
 app.listen(port, () => {
   console.log(`BD TV API listening on port ${port}`);
