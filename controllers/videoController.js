@@ -16,8 +16,11 @@ const {
 } = require("../utils");
 const { THUMBNAIL_BUCKET, VIDEO_BUCKET } = require("../constants");
 
+console.log("video controller loaded");
+
 exports.index = async (req, res) => {
   try {
+    console.log("get vidoes");
     const videos = await Video.find({});
 
     return res.json({ videos });
