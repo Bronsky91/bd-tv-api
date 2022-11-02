@@ -10,6 +10,8 @@ router
   .patch(videoController.edit)
   .delete(videoController.remove);
 
+router.route("/vidoe/:id").get(videoController.byId);
+
 router.route("/video/search").get(videoController.search);
 
 router.route("/video/thumbnail").get(videoController.getThumbnailImage);

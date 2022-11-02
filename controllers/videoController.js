@@ -16,14 +16,24 @@ const {
 } = require("../utils");
 const { THUMBNAIL_BUCKET, VIDEO_BUCKET } = require("../constants");
 
-console.log("video controller loaded");
-
 exports.index = async (req, res) => {
   try {
-    console.log("get vidoes");
     const videos = await Video.find({});
 
     return res.json({ videos });
+  } catch (error) {
+    console.log(error);
+    res.status(400).send({ error });
+  }
+};
+
+exports.byId = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(req);
+    const video = await Video.findById(id);
+
+    return res.json({ video });
   } catch (error) {
     console.log(error);
     res.status(400).send({ error });
@@ -51,7 +61,9 @@ exports.add = async (req, res) => {
       Body: videoBuffer,
     };
     const putVideoObjectPromise = s3.putObject(videoParams).promise();
-    await putVideoObjectPromise;
+    putVideoObjectPromise.finally((res) => {
+      console.log("Video finished uploading");
+    });
 
     // Uploads thumbnail to S3
     const thumbnailPath = await thumbsupply.generateThumbnail(tempFilePath, {
