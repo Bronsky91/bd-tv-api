@@ -29,8 +29,7 @@ exports.index = async (req, res) => {
 
 exports.byId = async (req, res) => {
   try {
-    const { id } = req.params;
-    console.log(req);
+    const { id } = req.query;
     const video = await Video.findById(id);
 
     return res.json({ video });
@@ -165,7 +164,6 @@ exports.search = async (req, res) => {
           { title: regex },
           { keywords: { $in: searchArray } },
           { description: regex },
-          { creator: regex },
         ],
       };
 
