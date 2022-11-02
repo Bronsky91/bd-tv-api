@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const bodyParser = require("body-parser");
 const express = require("express");
 var mongoose = require("mongoose");
@@ -42,6 +42,10 @@ app.use((req, res, next) => {
     "Access-Control-Allow-Methods",
     "GET, POST, PUT, PATCH, DELETE"
   );
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
   next();
 });
 
