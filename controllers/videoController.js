@@ -141,8 +141,19 @@ exports.remove = async (req, res) => {
 
 exports.search = async (req, res) => {
   try {
-    //TODO: Base of keywords, title, and description
-    const videos = await Video.find({});
+    const { term } = req.query;
+    const regex = new RegExp(term, "i");
+    const searchArray = term.split(" ");
+    const query = {
+      $or: [
+        { title: regex },
+        { keywords: { $in: searchArray } },
+        { description: regex },
+        { creator: regex },
+      ],
+    };
+
+    const videos = await Video.find(query);
 
     return res.json({ videos });
   } catch (error) {
